@@ -1,21 +1,20 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import io
 
 # Page Config
 st.set_page_config(
-    page_title="ANM FASHION - YARN PAYABLE Report",
+    page_title="ANM FASHION - Accounts Payable & Yarn Report",
     page_icon="🧵",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom Executive CSS Styling (ANM FASHION Colors & Cards)
+# Custom Executive CSS Styling
 st.markdown("""
     <style>
-    .main {
-        background-color: #0e1117;
-    }
+    .main { background-color: #0e1117; }
     .company-header {
         background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
         padding: 24px;
@@ -71,7 +70,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Sidebar Controls
-st.sidebar.header("⚙️ Settings & Controls")
+st.sidebar.header("⚙️ Settings & Filters")
 header_row = st.sidebar.number_input("Header Row Index (0 = 1st line, 2 = 3rd line)", min_value=0, max_value=10, value=2, step=1)
 
 uploaded_file = st.sidebar.file_uploader("Upload Excel File (.xlsx, .xls)", type=["xlsx", "xls"])
@@ -80,7 +79,6 @@ def parse_month_year(val):
     if pd.isna(val):
         return None
     val_str = str(val).strip().upper()
-    
     try:
         dt = pd.to_datetime(val_str, errors='coerce')
         if not pd.isna(dt):
@@ -142,6 +140,15 @@ if uploaded_file is not None:
 
         df_clean['STD_MONTH'] = df_clean[month_col].apply(parse_month_year)
 
+        # Party Search / Filter in Sidebar
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🔍 Search & Filter Parties")
+        unique_parties = sorted(df_clean[party_col].unique())
+        selected_parties = st.sidebar.multiselect("Select Parties to Display", unique_parties, default=unique_parties)
+
+        if selected_parties:
+            df_clean = df_clean[df_clean[party_col].isin(selected_parties)]
+
         # KPI Cards HTML
         tot_inv = df_clean[amount_col].sum()
         tot_qty = df_clean[qty_col].sum() if qty_col else 0
@@ -166,8 +173,8 @@ if uploaded_file is not None:
         with c3:
             st.markdown(f"""
                 <div class="kpi-card">
-                    <div class="kpi-title">TOTAL INVOICES / ENTRIES</div>
-                    <div class="kpi-value">{len(df_clean)} Records</div>
+                    <div class="kpi-title">TOTAL RECORDS / PARTIES</div>
+                    <div class="kpi-value">{len(df_clean)} Rows ({len(selected_parties)} Parties)</div>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -188,7 +195,7 @@ if uploaded_file is not None:
                 fill_value=0
             )
 
-            # Sort Months Chronologically (JAN to DEC)
+            # Sort Months Chronologically
             sorted_months = sort_months_chronologically(pivot.columns)
             pivot = pivot[sorted_months]
 
@@ -198,7 +205,7 @@ if uploaded_file is not None:
             total_row.name = 'GRAND TOTAL'
             pivot_with_total = pd.concat([pivot, pd.DataFrame(total_row).T])
 
-            # Formatting Matrix Values (Commas and Dash for Zeros)
+            # Formatting Matrix Values for Display
             format_func = lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) and x > 0 else "-"
             if hasattr(pivot_with_total, 'map'):
                 formatted_matrix = pivot_with_total.map(format_func)
@@ -207,9 +214,18 @@ if uploaded_file is not None:
 
             st.dataframe(formatted_matrix, use_container_width=True, height=520)
 
-            # Download CSV Button
-            csv_data = pivot_with_total.to_csv().encode('utf-8')
-            st.download_button("📥 Download ANM Fashion Summary Matrix (CSV)", data=csv_data, file_name="ANM_Fashion_Yarn_Payable_Summary.csv", mime="text/csv")
+            # Professional Excel Download Button using BytesIO
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                pivot_with_total.to_excel(writer, sheet_name='Yarn_Payable_Summary')
+            output.seek(0)
+
+            st.download_button(
+                label="📥 Download Professional Excel Report (.xlsx)",
+                data=output,
+                file_name="ANM_Fashion_Yarn_Payable_Summary.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
 
         with tab_details:
             st.subheader("Filtered Invoice Line-Items")

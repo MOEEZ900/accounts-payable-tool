@@ -44,6 +44,7 @@ st.markdown("""
     }
     .kpi-card-gold { border-left-color: #f59e0b !important; }
     .kpi-card-green { border-left-color: #10b981 !important; }
+    .kpi-card-red { border-left-color: #ef4444 !important; }
     .kpi-title {
         color: #94a3b8;
         font-size: 13px;
@@ -66,7 +67,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-st.sidebar.header("⚙️ Settings & Filters")
+st.sidebar.header("⚙️ Settings & Controls")
 header_row = st.sidebar.number_input("Header Row Index (0 = 1st line, 2 = 3rd line)", min_value=0, max_value=10, value=2, step=1)
 
 uploaded_file = st.sidebar.file_uploader("Upload Excel File (.xlsx, .xls)", type=["xlsx", "xls"])
@@ -117,6 +118,7 @@ if uploaded_file is not None:
         default_party = next((v for k, v in cols_lower.items() if 'party' in k or 'supplier' in k), df.columns[0])
         default_month = next((v for k, v in cols_lower.items() if 'month' in k or 'date' in k), df.columns[1] if len(df.columns) > 1 else df.columns[0])
         default_amount = next((v for k, v in cols_lower.items() if 'invoice amount' in k or 'total' in k or 'amount' in k), df.columns[-1])
+        default_paid = next((v for k, v in cols_lower.items() if 'paid' in k or 'cheque' in k or 'payment' in k), None)
         default_qty = next((v for k, v in cols_lower.items() if 'qty' in k or 'quantity' in k or 'bags' in k), None)
 
         st.sidebar.subheader("📌 Column Mapping")
@@ -124,53 +126,89 @@ if uploaded_file is not None:
         month_col = st.sidebar.selectbox("Month Column", df.columns, index=list(df.columns).index(default_month))
         amount_col = st.sidebar.selectbox("Invoice Amount Column", df.columns, index=list(df.columns).index(default_amount))
         
+        paid_options = [None] + list(df.columns)
+        paid_index = (list(df.columns).index(default_paid) + 1) if default_paid and default_paid in df.columns else 0
+        paid_col = st.sidebar.selectbox("Paid / Cheque Amount Column", paid_options, index=paid_index)
+
         qty_options = [None] + list(df.columns)
         qty_index = (list(df.columns).index(default_qty) + 1) if default_qty and default_qty in df.columns else 0
         qty_col = st.sidebar.selectbox("Yarn Quantity Column (Optional)", qty_options, index=qty_index)
 
+        # Data Cleaning
         df_clean = df.copy()
         df_clean[party_col] = df_clean[party_col].fillna('').astype(str).str.strip()
         df_clean = df_clean[~df_clean[party_col].isin(['None', 'nan', '', 'TOTAL', 'GRAND TOTAL', '0'])]
         
         df_clean[amount_col] = pd.to_numeric(df_clean[amount_col], errors='coerce').fillna(0)
+        
+        if paid_col:
+            df_clean[paid_col] = pd.to_numeric(df_clean[paid_col], errors='coerce').fillna(0)
+            df_clean['OUTSTANDING_BALANCE'] = df_clean[amount_col] - df_clean[paid_col]
+        else:
+            df_clean['OUTSTANDING_BALANCE'] = df_clean[amount_col]
+
         if qty_col:
             df_clean[qty_col] = pd.to_numeric(df_clean[qty_col], errors='coerce').fillna(0)
 
         df_clean['STD_MONTH'] = df_clean[month_col].apply(parse_month_year)
 
+        # Filtering Option: Include/Exclude Fully Paid Invoices
         st.sidebar.markdown("---")
+        filter_status = st.sidebar.radio("View Status Option:", ["Show Outstanding Balance Only", "Show Total Invoice Amount", "Show Paid Entries Only"])
+
+        if filter_status == "Show Outstanding Balance Only":
+            target_metric_col = 'OUTSTANDING_BALANCE'
+            df_display = df_clean[df_clean['OUTSTANDING_BALANCE'] > 0]
+        elif filter_status == "Show Paid Entries Only" and paid_col:
+            target_metric_col = paid_col
+            df_display = df_clean[df_clean[paid_col] > 0]
+        else:
+            target_metric_col = amount_col
+            df_display = df_clean.copy()
+
+        # Party Search Filter
         st.sidebar.subheader("🔍 Search & Filter Parties")
         unique_parties = sorted([str(p) for p in df_clean[party_col].unique() if str(p).strip()])
         selected_parties = st.sidebar.multiselect("Select Parties to Display", unique_parties, default=unique_parties)
 
         if selected_parties:
-            df_clean = df_clean[df_clean[party_col].isin(selected_parties)]
+            df_display = df_display[df_display[party_col].isin(selected_parties)]
 
+        # KPI Metrics
         tot_inv = df_clean[amount_col].sum()
-        tot_qty = df_clean[qty_col].sum() if qty_col else 0
+        tot_paid_amt = df_clean[paid_col].sum() if paid_col else 0
+        tot_outstanding = df_clean['OUTSTANDING_BALANCE'].sum()
 
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         with c1:
             st.markdown(f"""
                 <div class="kpi-card kpi-card-gold">
-                    <div class="kpi-title">TOTAL YARN PAYABLE</div>
+                    <div class="kpi-title">TOTAL INVOICE BILLING</div>
                     <div class="kpi-value">PKR {tot_inv:,.0f}</div>
                 </div>
             """, unsafe_allow_html=True)
-        
+
         with c2:
             st.markdown(f"""
                 <div class="kpi-card kpi-card-green">
-                    <div class="kpi-title">TOTAL YARN RECEIVED</div>
-                    <div class="kpi-value">{tot_qty:,.0f} Bags/Kg</div>
+                    <div class="kpi-title">TOTAL PAID (CHEQUES)</div>
+                    <div class="kpi-value">PKR {tot_paid_amt:,.0f}</div>
                 </div>
             """, unsafe_allow_html=True)
 
         with c3:
             st.markdown(f"""
+                <div class="kpi-card kpi-card-red">
+                    <div class="kpi-title">REMAINING OUTSTANDING</div>
+                    <div class="kpi-value">PKR {tot_outstanding:,.0f}</div>
+                </div>
+            """, unsafe_allow_html=True)
+            
+        with c4:
+            st.markdown(f"""
                 <div class="kpi-card">
                     <div class="kpi-title">TOTAL RECORDS / PARTIES</div>
-                    <div class="kpi-value">{len(df_clean)} Rows ({len(selected_parties)} Parties)</div>
+                    <div class="kpi-value">{len(df_display)} Invoices</div>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -179,13 +217,13 @@ if uploaded_file is not None:
         tab_pivot, tab_details = st.tabs(["📊 Month-wise Pivot Summary", "🧾 Invoice-wise Detailed Report"])
 
         with tab_pivot:
-            st.subheader("Party-wise & Chronological Month-wise Matrix Pivot")
+            st.subheader(f"Party-wise Matrix Pivot ({filter_status})")
             
             pivot = pd.pivot_table(
-                df_clean,
+                df_display,
                 index=party_col,
                 columns='STD_MONTH',
-                values=amount_col,
+                values=target_metric_col,
                 aggfunc='sum',
                 fill_value=0
             )
@@ -206,21 +244,22 @@ if uploaded_file is not None:
 
             st.dataframe(formatted_matrix, use_container_width=True, height=520)
 
+            # Excel Download
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 pivot_with_total.to_excel(writer, sheet_name='Yarn_Payable_Summary')
             output.seek(0)
 
             st.download_button(
-                label="📥 Download Professional Excel Report (.xlsx)",
+                label="📥 Download Excel Report (.xlsx)",
                 data=output,
-                file_name="ANM_Fashion_Yarn_Payable_Summary.xlsx",
+                file_name=f"ANM_Fashion_Yarn_Payable_{target_metric_col}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
         with tab_details:
-            st.subheader("Filtered Invoice Line-Items")
-            st.dataframe(df_clean, use_container_width=True)
+            st.subheader("Filtered Invoice Line-Items & Balance Breakdown")
+            st.dataframe(df_display, use_container_width=True)
 
     except Exception as e:
         st.error(f"Error Processing File: {e}")

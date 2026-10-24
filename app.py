@@ -6,7 +6,7 @@ st.set_page_config(page_title="Accounts Payable Automation Tool", layout="wide")
 st.title("🧵 Accounts Payable & Yarn Receiving Dashboard")
 st.write("Apni Excel file yahan upload karein taake automated reports generate ho sakein.")
 
-# Sidebar for advanced settings
+# Sidebar for settings
 st.sidebar.header("⚙️ Settings")
 header_row = st.sidebar.number_input("Header Row Number (0 for 1st row, 1 for 2nd row)", min_value=0, max_value=5, value=0, step=1)
 
@@ -33,8 +33,24 @@ if uploaded_file is not None:
                 month_col = cols_map.get('MONTH', None)
                 
                 if party_col and month_col:
-                    summary_df = df.groupby([party_col, month_col]).sum(numeric_only=True).reset_index()
-                    st.dataframe(summary_df, use_container_width=True)
+                    # Sirf zaroori financial columns ko sum karein (S.# aur Rate exclude honge)
+                    agg_dict = {}
+                    target_cols = ['QTY', 'AMOUNT', 'SALES TAX', 'INVOICE AMOUNT', 'PAID', 'BALANCE']
+                    for col in target_cols:
+                        matched_key = cols_map.get(col)
+                        if matched_key:
+                            agg_dict[matched_key] = 'sum'
+                    
+                    if agg_dict:
+                        summary_df = df.groupby([party_col, month_col]).agg(agg_dict).reset_index()
+                        st.dataframe(summary_df, use_container_width=True)
+                        
+                        # Download button for summary report
+                        csv = summary_df.to_csv(index=False).encode('utf-8')
+                        st.download_button("📥 Download Summary CSV", data=csv, file_name="Monthly_Payable_Summary.csv", mime="text/csv")
+                    else:
+                        summary_df = df.groupby([party_col, month_col]).sum(numeric_only=True).reset_index()
+                        st.dataframe(summary_df, use_container_width=True)
                 else:
                     st.warning("Columns 'PARTY NAME' ya 'MONTH' nahi mil rahe. Neeche Raw Data View mein check karein.")
                     st.dataframe(df, use_container_width=True)

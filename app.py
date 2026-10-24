@@ -482,4 +482,71 @@ if uploaded_file is not None:
         if st.button(
             "🖨️ Print / Save Summary Report as PDF",
             use_container_width=True,
-            key="
+            key="print_summary_btn",
+        ):
+          components.html(
+              "<script>window.parent.print();</script>", height=0, width=0
+          )
+
+    with tab_details:
+      st.subheader("🧾 Detailed Invoice Ledger & Party-wise Statements")
+
+      col_filter_p, col_empty = st.columns([2, 2])
+      with col_filter_p:
+        print_party_target = st.selectbox(
+            "Select Specific Party for Invoice-wise Detail / Statement Print:",
+            ["All Filtered Parties"] + unique_parties,
+        )
+
+      if print_party_target != "All Filtered Parties":
+        df_display_details = df_clean[
+            df_clean[party_col] == print_party_target
+        ]
+        st.info(
+            f"Showing invoice-wise breakdown for: **{print_party_target}**"
+        )
+      else:
+        df_display_details = df_clean
+
+      st.write(
+          df_display_details.to_html(index=False, classes="styled-table"),
+          unsafe_allow_html=True,
+      )
+
+      col_dl_d, col_pr_d = st.columns(2)
+
+      with col_dl_d:
+        output_details = io.BytesIO()
+        with pd.ExcelWriter(output_details, engine="openpyxl") as writer:
+          df_display_details.to_excel(
+              writer, index=False, sheet_name="Detailed_Ledger"
+          )
+        output_details.seek(0)
+
+        st.download_button(
+            label="📥 Download Detailed Ledger Excel (.xlsx)",
+            data=output_details,
+            file_name=f"ANM_Fashion_Detailed_Ledger_{print_party_target.replace(' ', '_')}.xlsx",
+            mime=(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ),
+            use_container_width=True,
+        )
+
+      with col_pr_d:
+        if st.button(
+            "🖨️ Print / Save Invoice-wise Detail as PDF",
+            use_container_width=True,
+            key="print_detail_btn",
+        ):
+          components.html(
+              "<script>window.parent.print();</script>", height=0, width=0
+          )
+
+  except Exception as e:
+    st.error(f"Error Processing File: {e}")
+else:
+  st.info(
+      "👈 ANM FASHION Dashboard run karne ke liye sidebar se apni Excel sheet"
+      " upload karein."
+  )

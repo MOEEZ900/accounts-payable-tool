@@ -118,7 +118,6 @@ if uploaded_file is not None:
         default_party = next((v for k, v in cols_lower.items() if 'party' in k or 'supplier' in k), df.columns[0])
         default_month = next((v for k, v in cols_lower.items() if 'month' in k or 'date' in k), df.columns[1] if len(df.columns) > 1 else df.columns[0])
         
-        # Prioritize Total With GST / Gross columns
         default_amount = next((v for k, v in cols_lower.items() if 'total with gst' in k or 'inc gst' in k or 'gross' in k or 'total amount' in k or 'net' in k), None)
         if not default_amount:
             default_amount = next((v for k, v in cols_lower.items() if 'amount' in k), df.columns[-1])
@@ -129,8 +128,6 @@ if uploaded_file is not None:
         st.sidebar.subheader("📌 Column Mapping")
         party_col = st.sidebar.selectbox("Party Name Column", df.columns, index=list(df.columns).index(default_party))
         month_col = st.sidebar.selectbox("Month Column", df.columns, index=list(df.columns).index(default_month))
-        
-        # Explicit label for Total With GST
         amount_col = st.sidebar.selectbox("Total Amount (With GST) Column", df.columns, index=list(df.columns).index(default_amount))
         
         paid_options = [None] + list(df.columns)
@@ -159,9 +156,9 @@ if uploaded_file is not None:
 
         df_clean['STD_MONTH'] = df_clean[month_col].apply(parse_month_year)
 
-        # Filtering Option
+        # Filtering Option - Default set to Balance
         st.sidebar.markdown("---")
-        view_mode = st.sidebar.radio("Pivot Summary Display:", ["Show Total With GST (Default)", "Show Outstanding Balance Only", "Show Paid Entries Only"])
+        view_mode = st.sidebar.radio("Pivot Summary Display:", ["Show Balance Amount (Default)", "Show Total With GST", "Show Paid Entries Only"])
 
         # Party Search Filter
         st.sidebar.subheader("🔍 Search & Filter Parties")
@@ -171,15 +168,15 @@ if uploaded_file is not None:
         if selected_parties:
             df_clean = df_clean[df_clean[party_col].isin(selected_parties)]
 
-        # Determine value column for Pivot Summary
-        if view_mode == "Show Outstanding Balance Only":
-            pivot_value_col = 'OUTSTANDING_BALANCE'
-            df_pivot_source = df_clean[df_clean['OUTSTANDING_BALANCE'] > 0]
+        # Determine value column for Pivot Summary (Default to Balance)
+        if view_mode == "Show Total With GST":
+            pivot_value_col = amount_col
+            df_pivot_source = df_clean
         elif view_mode == "Show Paid Entries Only" and paid_col:
             pivot_value_col = paid_col
             df_pivot_source = df_clean[df_clean[paid_col] > 0]
         else:
-            pivot_value_col = amount_col  # Total With GST Amount
+            pivot_value_col = 'OUTSTANDING_BALANCE'  # Balance Amount Default
             df_pivot_source = df_clean
 
         # KPI Metrics
@@ -207,7 +204,7 @@ if uploaded_file is not None:
         with c3:
             st.markdown(f"""
                 <div class="kpi-card kpi-card-red">
-                    <div class="kpi-title">REMAINING OUTSTANDING</div>
+                    <div class="kpi-title">REMAINING BALANCE</div>
                     <div class="kpi-value">PKR {tot_outstanding:,.0f}</div>
                 </div>
             """, unsafe_allow_html=True)

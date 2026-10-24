@@ -13,12 +13,9 @@ st.set_page_config(
 # Custom Executive CSS Styling (ANM FASHION Colors & Cards)
 st.markdown("""
     <style>
-    /* Main Background & Font */
     .main {
         background-color: #0e1117;
     }
-    
-    /* Header Container Style */
     .company-header {
         background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
         padding: 24px;
@@ -41,8 +38,6 @@ st.markdown("""
         font-weight: 600;
         margin-top: 5px;
     }
-
-    /* Executive KPI Cards */
     .kpi-card {
         background: #1e293b;
         padding: 18px;
@@ -52,7 +47,6 @@ st.markdown("""
     }
     .kpi-card-gold { border-left-color: #f59e0b !important; }
     .kpi-card-green { border-left-color: #10b981 !important; }
-    
     .kpi-title {
         color: #94a3b8;
         font-size: 13px;
@@ -66,7 +60,7 @@ st.markdown("""
         margin-top: 5px;
     }
     </style>
-""", unsafe_allow_javascript=True)
+""", unsafe_allow_html=True)
 
 # Company Header Banner
 st.markdown("""
@@ -74,7 +68,7 @@ st.markdown("""
         <div class="company-title">ANM FASHION</div>
         <div class="company-subtitle">🧵 YARN PAYABLE REPORT & ACCOUNTS DASHBOARD</div>
     </div>
-""", unsafe_allow_javascript=True)
+""", unsafe_allow_html=True)
 
 # Sidebar Controls
 st.sidebar.header("⚙️ Settings & Controls")
@@ -159,7 +153,7 @@ if uploaded_file is not None:
                     <div class="kpi-title">TOTAL YARN PAYABLE</div>
                     <div class="kpi-value">PKR {tot_inv:,.0f}</div>
                 </div>
-            """, unsafe_unsafe_javascript=True if 'unsafe_unsafe_javascript' in locals() else True)
+            """, unsafe_allow_html=True)
         
         with c2:
             st.markdown(f"""
@@ -172,3 +166,56 @@ if uploaded_file is not None:
         with c3:
             st.markdown(f"""
                 <div class="kpi-card">
+                    <div class="kpi-title">TOTAL INVOICES / ENTRIES</div>
+                    <div class="kpi-value">{len(df_clean)} Records</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        tab_pivot, tab_details = st.tabs(["📊 Month-wise Pivot Summary", "🧾 Invoice-wise Detailed Report"])
+
+        with tab_pivot:
+            st.subheader("Party-wise & Chronological Month-wise Matrix Pivot")
+            
+            # Pivot Table Generation
+            pivot = pd.pivot_table(
+                df_clean,
+                index=party_col,
+                columns='STD_MONTH',
+                values=amount_col,
+                aggfunc='sum',
+                fill_value=0
+            )
+
+            # Sort Months Chronologically (JAN to DEC)
+            sorted_months = sort_months_chronologically(pivot.columns)
+            pivot = pivot[sorted_months]
+
+            # Add Total Column & Row
+            pivot['TOTAL'] = pivot.sum(axis=1)
+            total_row = pivot.sum(axis=0)
+            total_row.name = 'GRAND TOTAL'
+            pivot_with_total = pd.concat([pivot, pd.DataFrame(total_row).T])
+
+            # Formatting Matrix Values (Commas and Dash for Zeros)
+            format_func = lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) and x > 0 else "-"
+            if hasattr(pivot_with_total, 'map'):
+                formatted_matrix = pivot_with_total.map(format_func)
+            else:
+                formatted_matrix = pivot_with_total.applymap(format_func)
+
+            st.dataframe(formatted_matrix, use_container_width=True, height=520)
+
+            # Download CSV Button
+            csv_data = pivot_with_total.to_csv().encode('utf-8')
+            st.download_button("📥 Download ANM Fashion Summary Matrix (CSV)", data=csv_data, file_name="ANM_Fashion_Yarn_Payable_Summary.csv", mime="text/csv")
+
+        with tab_details:
+            st.subheader("Filtered Invoice Line-Items")
+            st.dataframe(df_clean, use_container_width=True)
+
+    except Exception as e:
+        st.error(f"Error Processing File: {e}")
+else:
+    st.info("👈 ANM FASHION Dashboard run karne ke liye sidebar se apni Excel sheet (.xlsx) upload karein.")

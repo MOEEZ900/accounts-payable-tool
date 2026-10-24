@@ -10,9 +10,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Custom Light Theme & Executive Styling (White Background)
 st.markdown("""
     <style>
-    .main { background-color: #0e1117; }
+    .main { background-color: #ffffff; color: #0f172a; }
+    .stApp { background-color: #ffffff; }
+    
     .company-header {
         background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
         padding: 24px;
@@ -20,7 +23,7 @@ st.markdown("""
         border-bottom: 4px solid #f59e0b;
         color: white;
         margin-bottom: 25px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
     .company-title {
         font-size: 32px !important;
@@ -35,28 +38,44 @@ st.markdown("""
         font-weight: 600;
         margin-top: 5px;
     }
+
     .kpi-card {
-        background: #1e293b;
+        background: #f8fafc;
         padding: 18px;
         border-radius: 10px;
-        border-left: 5px solid #3b82f6;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        border: 1px solid #e2e8f0;
+        border-left: 5px solid #1e3a8a;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }
     .kpi-card-gold { border-left-color: #f59e0b !important; }
     .kpi-card-green { border-left-color: #10b981 !important; }
     .kpi-card-red { border-left-color: #ef4444 !important; }
+    
     .kpi-title {
-        color: #94a3b8;
+        color: #64748b;
         font-size: 13px;
         font-weight: 600;
         text-transform: uppercase;
     }
     .kpi-value {
-        color: #ffffff;
+        color: #0f172a;
         font-size: 24px;
         font-weight: 700;
         margin-top: 5px;
     }
+    
+    .print-btn {
+        background-color: #1e3a8a;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 14px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .print-btn:hover { background-color: #1d4ed8; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -135,7 +154,7 @@ if uploaded_file is not None:
 
         balance_options = [None] + list(df.columns)
         balance_index = (list(df.columns).index(default_balance) + 1) if default_balance and default_balance in df.columns else 0
-        balance_col = st.sidebar.selectbox("Balance Amount Column (Target for Summary)", balance_options, index=balance_index)
+        balance_col = st.sidebar.selectbox("Balance Amount Column", balance_options, index=balance_index)
 
         qty_options = [None] + list(df.columns)
         qty_index = (list(df.columns).index(default_qty) + 1) if default_qty and default_qty in df.columns else 0
@@ -162,6 +181,26 @@ if uploaded_file is not None:
 
         df_clean['STD_MONTH'] = df_clean[month_col].apply(parse_month_year)
 
+        # Sidebar Filter Option (1. Total Outstanding, 2. Paid Chq, 3. Balance Outstanding)
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🎯 Summary View Filter")
+        summary_view_option = st.sidebar.radio(
+            "Select View & Summary Metric:",
+            ["3. Balance Outstanding (Default)", "1. Total Outstanding (Invoice)", "2. Paid Cheque (Paid)"]
+        )
+
+        # Determine pivot value column based on selection
+        if "1. Total Outstanding" in summary_view_option:
+            pivot_value_col = invoice_col
+            view_label = "Total Outstanding (Invoice Amount)"
+        elif "2. Paid Cheque" in summary_view_option and paid_col:
+            pivot_value_col = paid_col
+            view_label = "Paid Cheque Amount"
+        else:
+            pivot_value_col = balance_col
+            view_label = "Balance Outstanding Amount"
+
+        # Party Search Filter
         st.sidebar.markdown("---")
         st.sidebar.subheader("🔍 Search & Filter Parties")
         unique_parties = sorted([str(p) for p in df_clean[party_col].unique() if str(p).strip()])
@@ -209,16 +248,23 @@ if uploaded_file is not None:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        tab_pivot, tab_details = st.tabs(["📊 Month-wise Balance Summary Pivot", "🧾 Invoice-wise Detailed Report"])
+        # Action Buttons Row (Print & Excel Export)
+        col_btn1, col_btn2 = st.columns([1, 4])
+        with col_btn1:
+            st.markdown("""
+                <button onclick="window.print()" class="print-btn">🖨️ Print Report</button>
+            """, unsafe_allow_html=True)
+
+        tab_pivot, tab_details = st.tabs(["📊 Month-wise Summary Pivot", "🧾 Invoice-wise Detailed Report"])
 
         with tab_pivot:
-            st.subheader("Party-wise & Month-wise Balance Summary (Strictly Balance Column)")
+            st.subheader(f"Party-wise & Month-wise Summary ({view_label})")
             
             pivot = pd.pivot_table(
                 df_clean,
                 index=party_col,
                 columns='STD_MONTH',
-                values=balance_col,
+                values=pivot_value_col,
                 aggfunc='sum',
                 fill_value=0
             )
@@ -239,15 +285,16 @@ if uploaded_file is not None:
 
             st.dataframe(formatted_matrix, use_container_width=True, height=520)
 
+            # Excel Download Button
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                pivot_with_total.to_excel(writer, sheet_name='Balance_Summary')
+                pivot_with_total.to_excel(writer, sheet_name='Summary_Report')
             output.seek(0)
 
             st.download_button(
                 label="📥 Download Professional Excel Report (.xlsx)",
                 data=output,
-                file_name="ANM_Fashion_Balance_Summary.xlsx",
+                file_name=f"ANM_Fashion_{view_label.replace(' ', '_')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 

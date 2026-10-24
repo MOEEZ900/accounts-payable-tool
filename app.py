@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Dark Theme UI with Advanced Print-Optimized CSS
+# PRINT OPTIMIZED CSS (Black Background & Dataframe Scroll Issue Fixed)
 st.markdown(
     """
     <style>
@@ -78,40 +78,48 @@ st.markdown(
         margin-top: 5px;
     }
 
-    /* Print Optimization Layout */
+    /* PERFECT PRINT & PDF CSS FIX */
     @media print {
-        [data-testid="stSidebar"] { display: none !important; }
-        .stButton { display: none !important; }
-        .company-header { 
-            background: none !important; 
-            color: #000000 !important; 
-            border-bottom: 2px solid #000 !important;
-            box-shadow: none !important;
-            padding: 10px !important;
+        @page {
+            size: A4 landscape;
+            margin: 10mm;
         }
-        .company-title { color: #000000 !important; font-size: 24px !important; }
-        .company-subtitle { color: #333333 !important; font-size: 14px !important; }
-        header { display: none !important; }
-        footer { display: none !important; }
-        
-        body, html, [data-testid="stAppViewContainer"] {
+
+        /* Hide Sidebar, Buttons, Headers */
+        [data-testid="stSidebar"], .stButton, header, footer, .company-header, .kpi-card {
+            display: none !important;
+        }
+
+        body, html, [data-testid="stAppViewContainer"], .main, .stApp {
             background-color: #ffffff !important;
             color: #000000 !important;
         }
-        
-        h1, h2, h3, h4, h5, h6, span, p, label {
+
+        h1, h2, h3, h4, h5, h6, span, p, label, div {
             color: #000000 !important;
         }
 
-        .kpi-card {
-            background: #f8fafc !important;
-            border: 1px solid #cbd5e1 !important;
-            box-shadow: none !important;
+        /* Fix Streamlit Dataframe Dark Background and Scroll Cuts */
+        [data-testid="stDataFrame"] {
+            background-color: #ffffff !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
         }
-        .kpi-title { color: #475569 !important; }
-        .kpi-value { color: #0f172a !important; }
-        
-        .stTabs { color: #000000 !important; }
+
+        div[data-testid="stDataFrame"] * {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            border-color: #cccccc !important;
+        }
+
+        /* Table Clean Grid Borders */
+        table, th, td {
+            border: 1px solid #000000 !important;
+            color: #000000 !important;
+            background-color: #ffffff !important;
+            font-size: 11px !important;
+        }
     }
     </style>
 """,
@@ -436,7 +444,12 @@ if uploaded_file is not None:
       else:
         formatted_matrix = pivot_with_total.applymap(format_func)
 
-      st.dataframe(formatted_matrix, use_container_width=True, height=520)
+      # Print-Friendly HTML Table Rendering for Print Option
+      st.markdown("### ANM FASHION - " + view_label)
+      st.write(
+          formatted_matrix.to_html(classes="styled-table"),
+          unsafe_allow_html=True,
+      )
 
       # Excel Download & Print Buttons
       col_dl, col_pr = st.columns(2)
@@ -470,7 +483,6 @@ if uploaded_file is not None:
     with tab_details:
       st.subheader("🧾 Detailed Invoice Ledger & Party-wise Statements")
 
-      # Specific Party Filter for Invoice-wise detailed printing
       col_filter_p, col_empty = st.columns([2, 2])
       with col_filter_p:
         print_party_target = st.selectbox(
@@ -488,15 +500,20 @@ if uploaded_file is not None:
       else:
         df_display_details = df_clean
 
-      st.dataframe(df_display_details, use_container_width=True, height=450)
+      # HTML Table conversion so full table prints without black box and scroll issues
+      st.write(
+          df_display_details.to_html(index=False, classes="styled-table"),
+          unsafe_allow_html=True,
+      )
 
-      # Excel Download & Print Buttons for Details
       col_dl_d, col_pr_d = st.columns(2)
 
       with col_dl_d:
         output_details = io.BytesIO()
         with pd.ExcelWriter(output_details, engine="openpyxl") as writer:
-          df_display_details.to_excel(writer, index=False, sheet_name="Detailed_Ledger")
+          df_display_details.to_excel(
+              writer, index=False, sheet_name="Detailed_Ledger"
+          )
         output_details.seek(0)
 
         st.download_button(

@@ -74,7 +74,7 @@ st.markdown("""
         margin-top: 5px;
     }
 
-    /* Print Settings: Sirf Material/Table print ho, baqi sab hide ho jaye */
+    /* Print Settings: Sirf Table aur content print ho, baqi sab hide ho jaye */
     @media print {
         [data-testid="stSidebar"] { display: none !important; }
         .stButton { display: none !important; }
@@ -265,10 +265,6 @@ if uploaded_file is not None:
         with tab_pivot:
             st.subheader(f"Party-wise & Month-wise Summary ({view_label})")
             
-            # Print Button inside Summary Tab
-            if st.button("🖨️ Print / Save Summary Report", key="print_summary", type="primary"):
-                components.html("<script>window.parent.print();</script>", height=0, width=0)
-            
             pivot = pd.pivot_table(
                 df_clean,
                 index=party_col,
@@ -294,42 +290,52 @@ if uploaded_file is not None:
 
             st.dataframe(formatted_matrix, use_container_width=True, height=520)
 
-            # Excel Download Option for Summary
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                pivot_with_total.to_excel(writer, sheet_name='Summary_Report')
-            output.seek(0)
+            # Excel Download & Print Buttons side-by-side at the bottom
+            col_dl, col_pr = st.columns(2)
+            
+            with col_dl:
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    pivot_with_total.to_excel(writer, sheet_name='Summary_Report')
+                output.seek(0)
 
-            st.download_button(
-                label="📥 Download Professional Excel Report (.xlsx)",
-                data=output,
-                file_name=f"ANM_Fashion_{view_label.replace(' ', '_')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
+                st.download_button(
+                    label="📥 Download Professional Excel Report (.xlsx)",
+                    data=output,
+                    file_name=f"ANM_Fashion_{view_label.replace(' ', '_')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+                
+            with col_pr:
+                if st.button("🖨️ Print / Save Summary Report as PDF", use_container_width=True, key="print_summary_btn"):
+                    components.html("<script>window.parent.print();</script>", height=0, width=0)
 
         with tab_details:
             st.subheader("Filtered Invoice Line-Items & Detailed Ledger")
             
-            # Print Button inside Detailed Ledger Tab
-            if st.button("🖨️ Print / Save Detailed Ledger", key="print_detail", type="primary"):
-                components.html("<script>window.parent.print();</script>", height=0, width=0)
-
             st.dataframe(df_clean, use_container_width=True, height=520)
 
-            # Excel Download Option for Details
-            output_details = io.BytesIO()
-            with pd.ExcelWriter(output_details, engine='openpyxl') as writer:
-                df_clean.to_excel(writer, index=False, sheet_name='Detailed_Ledger')
-            output_details.seek(0)
+            # Excel Download & Print Buttons side-by-side at the bottom for Details
+            col_dl_d, col_pr_d = st.columns(2)
+            
+            with col_dl_d:
+                output_details = io.BytesIO()
+                with pd.ExcelWriter(output_details, engine='openpyxl') as writer:
+                    df_clean.to_excel(writer, index=False, sheet_name='Detailed_Ledger')
+                output_details.seek(0)
 
-            st.download_button(
-                label="📥 Download Detailed Ledger Excel (.xlsx)",
-                data=output_details,
-                file_name="ANM_Fashion_Detailed_Ledger.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
+                st.download_button(
+                    label="📥 Download Detailed Ledger Excel (.xlsx)",
+                    data=output_details,
+                    file_name="ANM_Fashion_Detailed_Ledger.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+                
+            with col_pr_d:
+                if st.button("🖨️ Print / Save Detailed Ledger as PDF", use_container_width=True, key="print_detail_btn"):
+                    components.html("<script>window.parent.print();</script>", height=0, width=0)
 
     except Exception as e:
         st.error(f"Error Processing File: {e}")

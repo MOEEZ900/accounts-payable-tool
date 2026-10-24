@@ -4,7 +4,7 @@ from datetime import datetime
 
 # Page Config
 st.set_page_config(
-    page_title="ANM FASHION - Accounts Payable & Yarn Report",
+    page_title="ANM FASHION - YARN PAYABLE Report",
     page_icon="🧵",
     layout="wide",
     initial_sidebar_state="expanded"

@@ -128,7 +128,7 @@ if uploaded_file is not None:
         
         paid_options = [None] + list(df.columns)
         paid_index = (list(df.columns).index(default_paid) + 1) if default_paid and default_paid in df.columns else 0
-        paid_col = st.sidebar.selectbox("Paid / Cheque Amount Column", paid_options, index=paid_index)
+        paid_col = st.sidebar.selectbox("Paid / Cheque Amount Column (Optional)", paid_options, index=paid_index)
 
         qty_options = [None] + list(df.columns)
         qty_index = (list(df.columns).index(default_qty) + 1) if default_qty and default_qty in df.columns else 0
@@ -152,19 +152,9 @@ if uploaded_file is not None:
 
         df_clean['STD_MONTH'] = df_clean[month_col].apply(parse_month_year)
 
-        # Filtering Option: Include/Exclude Fully Paid Invoices
+        # Filtering Option
         st.sidebar.markdown("---")
-        filter_status = st.sidebar.radio("View Status Option:", ["Show Outstanding Balance Only", "Show Total Invoice Amount", "Show Paid Entries Only"])
-
-        if filter_status == "Show Outstanding Balance Only":
-            target_metric_col = 'OUTSTANDING_BALANCE'
-            df_display = df_clean[df_clean['OUTSTANDING_BALANCE'] > 0]
-        elif filter_status == "Show Paid Entries Only" and paid_col:
-            target_metric_col = paid_col
-            df_display = df_clean[df_clean[paid_col] > 0]
-        else:
-            target_metric_col = amount_col
-            df_display = df_clean.copy()
+        view_mode = st.sidebar.radio("Pivot Summary Display:", ["Show Full Invoice Amount (Default)", "Show Outstanding Balance Only", "Show Paid Entries Only"])
 
         # Party Search Filter
         st.sidebar.subheader("🔍 Search & Filter Parties")
@@ -172,7 +162,18 @@ if uploaded_file is not None:
         selected_parties = st.sidebar.multiselect("Select Parties to Display", unique_parties, default=unique_parties)
 
         if selected_parties:
-            df_display = df_display[df_display[party_col].isin(selected_parties)]
+            df_clean = df_clean[df_clean[party_col].isin(selected_parties)]
+
+        # Determine which value column to use for Pivot Summary based on selection
+        if view_mode == "Show Outstanding Balance Only":
+            pivot_value_col = 'OUTSTANDING_BALANCE'
+            df_pivot_source = df_clean[df_clean['OUTSTANDING_BALANCE'] > 0]
+        elif view_mode == "Show Paid Entries Only" and paid_col:
+            pivot_value_col = paid_col
+            df_pivot_source = df_clean[df_clean[paid_col] > 0]
+        else:
+            pivot_value_col = amount_col  # Exact Invoice Amount
+            df_pivot_source = df_clean
 
         # KPI Metrics
         tot_inv = df_clean[amount_col].sum()
@@ -207,8 +208,8 @@ if uploaded_file is not None:
         with c4:
             st.markdown(f"""
                 <div class="kpi-card">
-                    <div class="kpi-title">TOTAL RECORDS / PARTIES</div>
-                    <div class="kpi-value">{len(df_display)} Invoices</div>
+                    <div class="kpi-title">TOTAL PARTIES</div>
+                    <div class="kpi-value">{len(selected_parties)} Parties</div>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -217,13 +218,13 @@ if uploaded_file is not None:
         tab_pivot, tab_details = st.tabs(["📊 Month-wise Pivot Summary", "🧾 Invoice-wise Detailed Report"])
 
         with tab_pivot:
-            st.subheader(f"Party-wise Matrix Pivot ({filter_status})")
+            st.subheader(f"Party-wise Matrix Pivot ({view_mode})")
             
             pivot = pd.pivot_table(
-                df_display,
+                df_pivot_source,
                 index=party_col,
                 columns='STD_MONTH',
-                values=target_metric_col,
+                values=pivot_value_col,
                 aggfunc='sum',
                 fill_value=0
             )
@@ -251,15 +252,15 @@ if uploaded_file is not None:
             output.seek(0)
 
             st.download_button(
-                label="📥 Download Excel Report (.xlsx)",
+                label="📥 Download Professional Excel Report (.xlsx)",
                 data=output,
-                file_name=f"ANM_Fashion_Yarn_Payable_{target_metric_col}.xlsx",
+                file_name="ANM_Fashion_Yarn_Payable_Summary.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
         with tab_details:
             st.subheader("Filtered Invoice Line-Items & Balance Breakdown")
-            st.dataframe(df_display, use_container_width=True)
+            st.dataframe(df_clean, use_container_width=True)
 
     except Exception as e:
         st.error(f"Error Processing File: {e}")

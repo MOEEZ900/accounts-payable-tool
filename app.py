@@ -11,7 +11,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Dark Theme & Executive Styling (Original Black Background Look)
+# Dark Theme & Print-Optimized CSS
 st.markdown("""
     <style>
     .main { background-color: #0e1117; color: #ffffff; }
@@ -74,10 +74,18 @@ st.markdown("""
         margin-top: 5px;
     }
 
+    /* Print Settings: Sirf Material/Table print ho, baqi sab hide ho jaye */
     @media print {
         [data-testid="stSidebar"] { display: none !important; }
         .stButton { display: none !important; }
-        body { background-color: #ffffff !important; color: #000000 !important; }
+        .company-header { display: none !important; }
+        header { display: none !important; }
+        footer { display: none !important; }
+        body, html, [data-testid="stAppViewContainer"] {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+        }
+        .stTabs { color: #000000 !important; }
     }
     </style>
 """, unsafe_allow_html=True)
@@ -258,7 +266,7 @@ if uploaded_file is not None:
             st.subheader(f"Party-wise & Month-wise Summary ({view_label})")
             
             # Print Button inside Summary Tab
-            if st.button("🖨️ Print / Save Summary as PDF", key="print_summary", type="primary"):
+            if st.button("🖨️ Print / Save Summary Report", key="print_summary", type="primary"):
                 components.html("<script>window.parent.print();</script>", height=0, width=0)
             
             pivot = pd.pivot_table(
@@ -304,7 +312,7 @@ if uploaded_file is not None:
             st.subheader("Filtered Invoice Line-Items & Detailed Ledger")
             
             # Print Button inside Detailed Ledger Tab
-            if st.button("🖨️ Print / Save Detailed Ledger as PDF", key="print_detail", type="primary"):
+            if st.button("🖨️ Print / Save Detailed Ledger", key="print_detail", type="primary"):
                 components.html("<script>window.parent.print();</script>", height=0, width=0)
 
             st.dataframe(df_clean, use_container_width=True, height=520)

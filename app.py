@@ -17,42 +17,44 @@ if uploaded_file is not None:
         # Read Excel with dynamic header row
         df = pd.read_excel(uploaded_file, header=header_row)
         
-        # Clean column names (remove extra spaces)
+        # Clean column names
         df.columns = [str(col).strip() for col in df.columns]
         
         st.success("File kamyabi se load ho gayi hai!")
         
-        tab1, tab2, tab3 = st.tabs(["📅 Month-wise Summary", "🧾 Invoice-wise Report", "📊 Raw Data View"])
+        tab1, tab2, tab3 = st.tabs(["📅 Month-wise Pivot Summary", "🧾 Invoice-wise Report", "📊 Raw Data View"])
         
         with tab1:
-            st.subheader("Party-wise & Month-wise Payable Summary")
+            st.subheader("Party-wise & Month-wise Matrix Summary (Pivot Format)")
             try:
-                # Find matching columns case-insensitively
                 cols_map = {c.upper(): c for c in df.columns}
                 party_col = cols_map.get('PARTY NAME', cols_map.get('PARTY', None))
                 month_col = cols_map.get('MONTH', None)
+                amount_col = cols_map.get('INVOICE AMOUNT', cols_map.get('AMOUNT', None))
                 
-                if party_col and month_col:
-                    # Sirf zaroori financial columns ko sum karein (S.# aur Rate exclude honge)
-                    agg_dict = {}
-                    target_cols = ['QTY', 'AMOUNT', 'SALES TAX', 'INVOICE AMOUNT', 'PAID', 'BALANCE']
-                    for col in target_cols:
-                        matched_key = cols_map.get(col)
-                        if matched_key:
-                            agg_dict[matched_key] = 'sum'
+                if party_col and month_col and amount_col:
+                    # Convert amount to numeric safely
+                    df[amount_col] = pd.to_numeric(df[amount_col], errors='coerce').fillna(0)
                     
-                    if agg_dict:
-                        summary_df = df.groupby([party_col, month_col]).agg(agg_dict).reset_index()
-                        st.dataframe(summary_df, use_container_width=True)
-                        
-                        # Download button for summary report
-                        csv = summary_df.to_csv(index=False).encode('utf-8')
-                        st.download_button("📥 Download Summary CSV", data=csv, file_name="Monthly_Payable_Summary.csv", mime="text/csv")
-                    else:
-                        summary_df = df.groupby([party_col, month_col]).sum(numeric_only=True).reset_index()
-                        st.dataframe(summary_df, use_container_width=True)
+                    # Create Pivot Table (Parties as rows, Months as columns)
+                    pivot_df = df.pivot_table(
+                        index=party_col, 
+                        columns=month_col, 
+                        values=amount_col, 
+                        aggfunc='sum', 
+                        fill_value=0
+                    )
+                    
+                    # Format numbers with commas and dash for zeros
+                    formatted_pivot = pivot_df.applymap(lambda x: f"{x:,.0f}" if x > 0 else "-")
+                    
+                    st.dataframe(formatted_pivot, use_container_width=True)
+                    
+                    # Download button for summary report
+                    csv = pivot_df.to_csv().encode('utf-8')
+                    st.download_button("📥 Download Pivot Summary CSV", data=csv, file_name="Monthly_Pivot_Summary.csv", mime="text/csv")
                 else:
-                    st.warning("Columns 'PARTY NAME' ya 'MONTH' nahi mil rahe. Neeche Raw Data View mein check karein.")
+                    st.warning("Columns 'PARTY NAME', 'MONTH' ya 'INVOICE AMOUNT/AMOUNT' theek se nahi mil rahe. Neeche Raw Data View check karein.")
                     st.dataframe(df, use_container_width=True)
             except Exception as e:
                 st.error(f"Summary Error: {e}")

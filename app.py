@@ -5,88 +5,83 @@ import io
 import streamlit.components.v1 as components
 
 st.set_page_config(
-    page_title="ANM FASHION - Yarn Payable Dashboard",
+    page_title="ANM FASHION - Accounts Payable & Yarn Report",
     page_icon="🧵",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Executive Light Theme Styling
+# Dark Theme & Executive Styling (Original Black Background Look)
 st.markdown("""
     <style>
-    /* Executive White Base */
-    html, body, [data-testid="stAppViewContainer"] {
-        background-color: #f8fafc !important;
-        color: #0f172a !important;
-    }
+    .main { background-color: #0e1117; color: #ffffff; }
+    .stApp { background-color: #0e1117; }
     
     [data-testid="stSidebar"] {
-        background-color: #ffffff !important;
-        border-right: 1px solid #e2e8f0;
+        background-color: #111827 !important;
+        border-right: 1px solid #1f2937;
     }
 
-    /* Executive Header Banner */
+    h1, h2, h3, h4, h5, h6, span, p, label {
+        color: #ffffff !important;
+    }
+
     .company-header {
         background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
         padding: 24px;
         border-radius: 12px;
         border-bottom: 4px solid #f59e0b;
-        color: #ffffff;
+        color: white;
         margin-bottom: 25px;
-        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     }
     .company-title {
-        font-size: 30px !important;
+        font-size: 32px !important;
         font-weight: 800 !important;
-        letter-spacing: 1.2px;
+        letter-spacing: 1.5px;
         color: #ffffff !important;
         margin: 0;
     }
     .company-subtitle {
-        font-size: 16px !important;
+        font-size: 18px !important;
         color: #f59e0b !important;
         font-weight: 600;
-        margin-top: 4px;
+        margin-top: 5px;
     }
 
-    /* Light Executive Cards */
     .kpi-card {
-        background: #ffffff;
-        padding: 20px;
+        background: #1e293b;
+        padding: 18px;
         border-radius: 10px;
-        border: 1px solid #e2e8f0;
-        border-left: 5px solid #1e3a8a;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+        border: 1px solid #334155;
+        border-left: 5px solid #3b82f6;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
     }
     .kpi-card-gold { border-left-color: #f59e0b !important; }
     .kpi-card-green { border-left-color: #10b981 !important; }
     .kpi-card-red { border-left-color: #ef4444 !important; }
     
     .kpi-title {
-        color: #64748b;
-        font-size: 12px;
-        font-weight: 700;
+        color: #94a3b8 !important;
+        font-size: 13px;
+        font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
     }
     .kpi-value {
-        color: #0f172a;
+        color: #ffffff !important;
         font-size: 24px;
-        font-weight: 800;
-        margin-top: 6px;
+        font-weight: 700;
+        margin-top: 5px;
     }
 
-    /* Print-Friendly Media Query */
     @media print {
         [data-testid="stSidebar"] { display: none !important; }
         .stButton { display: none !important; }
-        .company-header { box-shadow: none !important; }
-        body { background-color: #ffffff !important; }
+        body { background-color: #ffffff !important; color: #000000 !important; }
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Main Company Header
 st.markdown("""
     <div class="company-header">
         <div class="company-title">ANM FASHION</div>
@@ -94,7 +89,6 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Sidebar Controls
 st.sidebar.header("⚙️ Settings & Controls")
 header_row = st.sidebar.number_input("Header Row Index (0 = 1st line, 2 = 3rd line)", min_value=0, max_value=10, value=2, step=1)
 
@@ -257,21 +251,15 @@ if uploaded_file is not None:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # Action Bar (Print / Export Buttons)
-        col_act1, col_act2 = st.columns([2, 5])
-        
-        with col_act1:
-            if st.button("🖨️ Print / Save as PDF", use_container_width=True, type="primary"):
-                components.html(
-                    "<script>window.parent.print();</script>",
-                    height=0,
-                    width=0
-                )
-
+        # Tabs for Summary and Details
         tab_pivot, tab_details = st.tabs(["📊 Month-wise Summary Pivot", "🧾 Detailed Invoice Ledger"])
 
         with tab_pivot:
-            st.subheader(f"Party-wise & Month-wise Pivot ({view_label})")
+            st.subheader(f"Party-wise & Month-wise Summary ({view_label})")
+            
+            # Print Button inside Summary Tab
+            if st.button("🖨️ Print / Save Summary as PDF", key="print_summary", type="primary"):
+                components.html("<script>window.parent.print();</script>", height=0, width=0)
             
             pivot = pd.pivot_table(
                 df_clean,
@@ -298,7 +286,7 @@ if uploaded_file is not None:
 
             st.dataframe(formatted_matrix, use_container_width=True, height=520)
 
-            # Excel Download Option
+            # Excel Download Option for Summary
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 pivot_with_total.to_excel(writer, sheet_name='Summary_Report')
@@ -313,8 +301,27 @@ if uploaded_file is not None:
             )
 
         with tab_details:
-            st.subheader("Filtered Invoice Line-Items & Ledger")
-            st.dataframe(df_clean, use_container_width=True)
+            st.subheader("Filtered Invoice Line-Items & Detailed Ledger")
+            
+            # Print Button inside Detailed Ledger Tab
+            if st.button("🖨️ Print / Save Detailed Ledger as PDF", key="print_detail", type="primary"):
+                components.html("<script>window.parent.print();</script>", height=0, width=0)
+
+            st.dataframe(df_clean, use_container_width=True, height=520)
+
+            # Excel Download Option for Details
+            output_details = io.BytesIO()
+            with pd.ExcelWriter(output_details, engine='openpyxl') as writer:
+                df_clean.to_excel(writer, index=False, sheet_name='Detailed_Ledger')
+            output_details.seek(0)
+
+            st.download_button(
+                label="📥 Download Detailed Ledger Excel (.xlsx)",
+                data=output_details,
+                file_name="ANM_Fashion_Detailed_Ledger.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
 
     except Exception as e:
         st.error(f"Error Processing File: {e}")

@@ -2,50 +2,61 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import io
+import streamlit.components.v1 as components
 
 st.set_page_config(
-    page_title="ANM FASHION - Accounts Payable & Yarn Report",
+    page_title="ANM FASHION - Yarn Payable Dashboard",
     page_icon="🧵",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Custom Light Theme & Executive Styling (White Background)
+# Executive Light Theme Styling
 st.markdown("""
     <style>
-    .main { background-color: #ffffff; color: #0f172a; }
-    .stApp { background-color: #ffffff; }
+    /* Executive White Base */
+    html, body, [data-testid="stAppViewContainer"] {
+        background-color: #f8fafc !important;
+        color: #0f172a !important;
+    }
     
+    [data-testid="stSidebar"] {
+        background-color: #ffffff !important;
+        border-right: 1px solid #e2e8f0;
+    }
+
+    /* Executive Header Banner */
     .company-header {
         background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
         padding: 24px;
         border-radius: 12px;
         border-bottom: 4px solid #f59e0b;
-        color: white;
+        color: #ffffff;
         margin-bottom: 25px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
     }
     .company-title {
-        font-size: 32px !important;
+        font-size: 30px !important;
         font-weight: 800 !important;
-        letter-spacing: 1.5px;
-        color: #ffffff;
+        letter-spacing: 1.2px;
+        color: #ffffff !important;
         margin: 0;
     }
     .company-subtitle {
-        font-size: 18px !important;
-        color: #f59e0b;
+        font-size: 16px !important;
+        color: #f59e0b !important;
         font-weight: 600;
-        margin-top: 5px;
+        margin-top: 4px;
     }
 
+    /* Light Executive Cards */
     .kpi-card {
-        background: #f8fafc;
-        padding: 18px;
+        background: #ffffff;
+        padding: 20px;
         border-radius: 10px;
         border: 1px solid #e2e8f0;
         border-left: 5px solid #1e3a8a;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        box-shadow: 0 2px 6px rgba(0,0,0,0.03);
     }
     .kpi-card-gold { border-left-color: #f59e0b !important; }
     .kpi-card-green { border-left-color: #10b981 !important; }
@@ -53,32 +64,29 @@ st.markdown("""
     
     .kpi-title {
         color: #64748b;
-        font-size: 13px;
-        font-weight: 600;
+        font-size: 12px;
+        font-weight: 700;
         text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
     .kpi-value {
         color: #0f172a;
         font-size: 24px;
-        font-weight: 700;
-        margin-top: 5px;
+        font-weight: 800;
+        margin-top: 6px;
     }
-    
-    .print-btn {
-        background-color: #1e3a8a;
-        color: white;
-        padding: 10px 20px;
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-        font-weight: bold;
-        font-size: 14px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+
+    /* Print-Friendly Media Query */
+    @media print {
+        [data-testid="stSidebar"] { display: none !important; }
+        .stButton { display: none !important; }
+        .company-header { box-shadow: none !important; }
+        body { background-color: #ffffff !important; }
     }
-    .print-btn:hover { background-color: #1d4ed8; }
     </style>
 """, unsafe_allow_html=True)
 
+# Main Company Header
 st.markdown("""
     <div class="company-header">
         <div class="company-title">ANM FASHION</div>
@@ -86,6 +94,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
+# Sidebar Controls
 st.sidebar.header("⚙️ Settings & Controls")
 header_row = st.sidebar.number_input("Header Row Index (0 = 1st line, 2 = 3rd line)", min_value=0, max_value=10, value=2, step=1)
 
@@ -181,7 +190,7 @@ if uploaded_file is not None:
 
         df_clean['STD_MONTH'] = df_clean[month_col].apply(parse_month_year)
 
-        # Sidebar Filter Option (1. Total Outstanding, 2. Paid Chq, 3. Balance Outstanding)
+        # Summary View Filter Selection
         st.sidebar.markdown("---")
         st.sidebar.subheader("🎯 Summary View Filter")
         summary_view_option = st.sidebar.radio(
@@ -189,10 +198,9 @@ if uploaded_file is not None:
             ["3. Balance Outstanding (Default)", "1. Total Outstanding (Invoice)", "2. Paid Cheque (Paid)"]
         )
 
-        # Determine pivot value column based on selection
         if "1. Total Outstanding" in summary_view_option:
             pivot_value_col = invoice_col
-            view_label = "Total Outstanding (Invoice Amount)"
+            view_label = "Total Invoice Amount"
         elif "2. Paid Cheque" in summary_view_option and paid_col:
             pivot_value_col = paid_col
             view_label = "Paid Cheque Amount"
@@ -213,6 +221,7 @@ if uploaded_file is not None:
         tot_paid_amt = df_clean[paid_col].sum() if paid_col else 0
         tot_balance = df_clean[balance_col].sum()
 
+        # Top Executive KPI Cards
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             st.markdown(f"""
@@ -225,7 +234,7 @@ if uploaded_file is not None:
         with c2:
             st.markdown(f"""
                 <div class="kpi-card kpi-card-green">
-                    <div class="kpi-title">TOTAL PAID</div>
+                    <div class="kpi-title">TOTAL PAID CHEQUES</div>
                     <div class="kpi-value">PKR {tot_paid_amt:,.0f}</div>
                 </div>
             """, unsafe_allow_html=True)
@@ -241,24 +250,28 @@ if uploaded_file is not None:
         with c4:
             st.markdown(f"""
                 <div class="kpi-card">
-                    <div class="kpi-title">TOTAL PARTIES</div>
+                    <div class="kpi-title">ACTIVE PARTIES</div>
                     <div class="kpi-value">{len(selected_parties)} Parties</div>
                 </div>
             """, unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # Action Buttons Row (Print & Excel Export)
-        col_btn1, col_btn2 = st.columns([1, 4])
-        with col_btn1:
-            st.markdown("""
-                <button onclick="window.print()" class="print-btn">🖨️ Print Report</button>
-            """, unsafe_allow_html=True)
+        # Action Bar (Print / Export Buttons)
+        col_act1, col_act2 = st.columns([2, 5])
+        
+        with col_act1:
+            if st.button("🖨️ Print / Save as PDF", use_container_width=True, type="primary"):
+                components.html(
+                    "<script>window.parent.print();</script>",
+                    height=0,
+                    width=0
+                )
 
-        tab_pivot, tab_details = st.tabs(["📊 Month-wise Summary Pivot", "🧾 Invoice-wise Detailed Report"])
+        tab_pivot, tab_details = st.tabs(["📊 Month-wise Summary Pivot", "🧾 Detailed Invoice Ledger"])
 
         with tab_pivot:
-            st.subheader(f"Party-wise & Month-wise Summary ({view_label})")
+            st.subheader(f"Party-wise & Month-wise Pivot ({view_label})")
             
             pivot = pd.pivot_table(
                 df_clean,
@@ -285,7 +298,7 @@ if uploaded_file is not None:
 
             st.dataframe(formatted_matrix, use_container_width=True, height=520)
 
-            # Excel Download Button
+            # Excel Download Option
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 pivot_with_total.to_excel(writer, sheet_name='Summary_Report')
@@ -295,7 +308,8 @@ if uploaded_file is not None:
                 label="📥 Download Professional Excel Report (.xlsx)",
                 data=output,
                 file_name=f"ANM_Fashion_{view_label.replace(' ', '_')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
             )
 
         with tab_details:

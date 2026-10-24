@@ -158,4 +158,104 @@ if uploaded_file is not None:
             balance_col = 'CALC_BALANCE'
 
         if qty_col:
-            df_clean[qty_col] = pd.to_numeric(df_clean[qty_col], errors='coerce').fillna
+            df_clean[qty_col] = pd.to_numeric(df_clean[qty_col], errors='coerce').fillna(0)
+
+        df_clean['STD_MONTH'] = df_clean[month_col].apply(parse_month_year)
+
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🔍 Search & Filter Parties")
+        unique_parties = sorted([str(p) for p in df_clean[party_col].unique() if str(p).strip()])
+        selected_parties = st.sidebar.multiselect("Select Parties to Display", unique_parties, default=unique_parties)
+
+        if selected_parties:
+            df_clean = df_clean[df_clean[party_col].isin(selected_parties)]
+
+        tot_inv = df_clean[invoice_col].sum()
+        tot_paid_amt = df_clean[paid_col].sum() if paid_col else 0
+        tot_balance = df_clean[balance_col].sum()
+
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.markdown(f"""
+                <div class="kpi-card kpi-card-gold">
+                    <div class="kpi-title">TOTAL INVOICE AMOUNT</div>
+                    <div class="kpi-value">PKR {tot_inv:,.0f}</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        with c2:
+            st.markdown(f"""
+                <div class="kpi-card kpi-card-green">
+                    <div class="kpi-title">TOTAL PAID</div>
+                    <div class="kpi-value">PKR {tot_paid_amt:,.0f}</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        with c3:
+            st.markdown(f"""
+                <div class="kpi-card kpi-card-red">
+                    <div class="kpi-title">TOTAL BALANCE PAYABLE</div>
+                    <div class="kpi-value">PKR {tot_balance:,.0f}</div>
+                </div>
+            """, unsafe_allow_html=True)
+            
+        with c4:
+            st.markdown(f"""
+                <div class="kpi-card">
+                    <div class="kpi-title">TOTAL PARTIES</div>
+                    <div class="kpi-value">{len(selected_parties)} Parties</div>
+                </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        tab_pivot, tab_details = st.tabs(["📊 Month-wise Balance Summary Pivot", "🧾 Invoice-wise Detailed Report"])
+
+        with tab_pivot:
+            st.subheader("Party-wise & Month-wise Balance Summary (Strictly Balance Column)")
+            
+            pivot = pd.pivot_table(
+                df_clean,
+                index=party_col,
+                columns='STD_MONTH',
+                values=balance_col,
+                aggfunc='sum',
+                fill_value=0
+            )
+
+            sorted_months = sort_months_chronologically(pivot.columns)
+            pivot = pivot[sorted_months]
+
+            pivot['TOTAL'] = pivot.sum(axis=1)
+            total_row = pivot.sum(axis=0)
+            total_row.name = 'GRAND TOTAL'
+            pivot_with_total = pd.concat([pivot, pd.DataFrame(total_row).T])
+
+            format_func = lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) and x > 0 else "-"
+            if hasattr(pivot_with_total, 'map'):
+                formatted_matrix = pivot_with_total.map(format_func)
+            else:
+                formatted_matrix = pivot_with_total.applymap(format_func)
+
+            st.dataframe(formatted_matrix, use_container_width=True, height=520)
+
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                pivot_with_total.to_excel(writer, sheet_name='Balance_Summary')
+            output.seek(0)
+
+            st.download_button(
+                label="📥 Download Professional Excel Report (.xlsx)",
+                data=output,
+                file_name="ANM_Fashion_Balance_Summary.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
+        with tab_details:
+            st.subheader("Filtered Invoice Line-Items & Ledger")
+            st.dataframe(df_clean, use_container_width=True)
+
+    except Exception as e:
+        st.error(f"Error Processing File: {e}")
+else:
+    st.info("👈 ANM FASHION Dashboard run karne ke liye sidebar se apni Excel sheet (.xlsx) upload karein.")

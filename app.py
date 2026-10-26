@@ -204,9 +204,9 @@ if uploaded_file is not None:
     df.columns = [str(c).strip() for c in df.columns]
 
     # Remove Unnamed Columns Safely
-    df = df.loc[
-        :, ~df.columns.astype(str).str.contains("Unnamed", case=False, na=False)
-    ]
+    df = df.drop(
+        columns=[col for col in df.columns if "Unnamed" in str(col)]
+    )
 
     st.sidebar.success("✅ File Loaded Successfully!")
 
@@ -339,74 +339,3 @@ if uploaded_file is not None:
             "3. Balance Outstanding (Default)",
             "1. Total Outstanding (Invoice)",
             "2. Paid Cheque (Paid)",
-        ],
-    )
-
-    if "1. Total Outstanding" in summary_view_option:
-      pivot_value_col = invoice_col
-      view_label = "Total Invoice Amount"
-    elif "2. Paid Cheque" in summary_view_option and paid_col:
-      pivot_value_col = paid_col
-      view_label = "Paid Cheque Amount"
-    else:
-      pivot_value_col = balance_col
-      view_label = "Balance Outstanding Amount"
-
-    # Option to Hide Zero/Blank Month Columns
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("👁️ Display Options")
-    hide_zero_cols = st.sidebar.checkbox(
-        "Hide Blank/Zero Month Columns", value=True
-    )
-
-    # Party Search Filter
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("🔍 Search & Filter Parties")
-    unique_parties = sorted(
-        [str(p) for p in df_clean[party_col].unique() if str(p).strip()]
-    )
-    selected_parties = st.sidebar.multiselect(
-        "Select Parties to Display", unique_parties, default=unique_parties
-    )
-
-    if selected_parties:
-      df_clean = df_clean[df_clean[party_col].isin(selected_parties)]
-
-    tot_inv = df_clean[invoice_col].sum()
-    tot_paid_amt = df_clean[paid_col].sum() if paid_col else 0
-    tot_balance = df_clean[balance_col].sum()
-
-    # Top Executive KPI Cards
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-      st.markdown(
-          """
-                <div class="kpi-card kpi-card-gold">
-                    <div class="kpi-title">TOTAL INVOICE AMOUNT</div>
-                    <div class="kpi-value">PKR {:,.0f}</div>
-                </div>
-            """.format(
-              tot_inv
-          ),
-          unsafe_allow_html=True,
-      )
-
-    with c2:
-      st.markdown(
-          """
-                <div class="kpi-card kpi-card-green">
-                    <div class="kpi-title">TOTAL PAID CHEQUES</div>
-                    <div class="kpi-value">PKR {:,.0f}</div>
-                </div>
-            """.format(
-              tot_paid_amt
-          ),
-          unsafe_allow_html=True,
-      )
-
-    with c3:
-      st.markdown(
-          """
-                <div class="kpi-card kpi-card-red">
-                    <div class="kpi-title">TOTAL BALANCE PAYABLE</div>
-                    <div class="kpi-value">PKR {:,.

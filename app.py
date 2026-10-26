@@ -371,44 +371,216 @@ if uploaded_file is not None:
     tot_paid_amt = df_clean[paid_col].sum() if paid_col else 0
     tot_balance = df_clean[balance_col].sum()
 
-    # Top Executive KPI Cards
+    # Top Executive KPI Cards (Using .format to prevent syntax errors)
     c1, c2, c3, c4 = st.columns(4)
     with c1:
       st.markdown(
-          f"""
+          """
                 <div class="kpi-card kpi-card-gold">
                     <div class="kpi-title">TOTAL INVOICE AMOUNT</div>
-                    <div class="kpi-value">PKR {tot_inv:,.0f}</div>
+                    <div class="kpi-value">PKR {:,.0f}</div>
                 </div>
-            """,
+            """.format(
+              tot_inv
+          ),
           unsafe_allow_html=True,
       )
 
     with c2:
       st.markdown(
-          f"""
+          """
                 <div class="kpi-card kpi-card-green">
                     <div class="kpi-title">TOTAL PAID CHEQUES</div>
-                    <div class="kpi-value">PKR {tot_paid_amt:,.0f}</div>
+                    <div class="kpi-value">PKR {:,.0f}</div>
                 </div>
-            """,
+            """.format(
+              tot_paid_amt
+          ),
           unsafe_allow_html=True,
       )
 
     with c3:
       st.markdown(
-          f"""
+          """
                 <div class="kpi-card kpi-card-red">
                     <div class="kpi-title">TOTAL BALANCE PAYABLE</div>
-                    <div class="kpi-value">PKR {tot_balance:,.0f}</div>
+                    <div class="kpi-value">PKR {:,.0f}</div>
                 </div>
-            """,
+            """.format(
+              tot_balance
+          ),
           unsafe_allow_html=True,
       )
 
     with c4:
       st.markdown(
-          f"""
+          """
                 <div class="kpi-card">
                     <div class="kpi-title">ACTIVE PARTIES</div>
-                    <div class="kpi-value">{len
+                    <div class="kpi-value">{} Parties</div>
+                </div>
+            """.format(
+              len(selected_parties)
+          ),
+          unsafe_allow_html=True,
+      )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Tabs for Summary and Details
+    tab_pivot, tab_details = st.tabs(
+        ["📊 Month-wise Summary Pivot", "🧾 Detailed Invoice Ledger & Editing"]
+    )
+
+    with tab_pivot:
+      st.subheader(f"Party-wise & Month-wise Summary ({view_label})")
+
+      pivot = pd.pivot_table(
+          df_clean,
+          index=party_col,
+          columns="STD_MONTH",
+          values=pivot_value_col,
+          aggfunc="sum",
+          fill_value=0,
+      )
+
+      sorted_months = sort_months_chronologically(pivot.columns)
+      pivot = pivot[sorted_months]
+
+      if hide_zero_cols:
+        cols_to_keep = [
+            c for c in pivot.columns if c == "TOTAL" or pivot[c].sum() > 0
+        ]
+        pivot = pivot[cols_to_keep]
+
+      pivot["TOTAL"] = pivot.sum(axis=1)
+      total_row = pivot.sum(axis=0)
+      total_row.name = "GRAND TOTAL"
+      pivot_with_total = pd.concat([pivot, pd.DataFrame(total_row).T])
+
+      format_func = (
+          lambda x: f"{x:,.0f}" if isinstance(x, (int, float)) and x > 0 else "-"
+      )
+      if hasattr(pivot_with_total, "map"):
+        formatted_matrix = pivot_with_total.map(format_func)
+      else:
+        formatted_matrix = pivot_with_total.applymap(format_func)
+
+      st.markdown("### ANM FASHION - " + view_label)
+      st.write(
+          formatted_matrix.to_html(classes="styled-table"),
+          unsafe_allow_html=True,
+      )
+
+      col_dl, col_pr = st.columns(2)
+
+      with col_dl:
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+          pivot_with_total.to_excel(writer, sheet_name="Summary_Report")
+        output.seek(0)
+
+        st.download_button(
+            label="📥 Download Professional Excel Report (.xlsx)",
+            data=output,
+            file_name="ANM_Fashion_Summary_Report.xlsx",
+            mime=(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ),
+            use_container_width=True,
+        )
+
+      with col_pr:
+        if st.button(
+            "🖨️ Print / Save Summary Report as PDF",
+            use_container_width=True,
+            key="print_summary_btn",
+        ):
+          components.html(
+              "<script>window.parent.print();</script>", height=0, width=0
+          )
+
+    with tab_details:
+      st.subheader(
+          "🧾 Detailed Invoice Ledger & Direct Editing (Cheque Paid Update)"
+      )
+      st.info(
+          "💡 Aap niche table mein Paid column mein amount enter karein, balance"
+          " automatically deduct ho kar summary aur KPIs mein update ho jayega!"
+      )
+
+      col_filter_p, col_empty = st.columns([2, 2])
+      with col_filter_p:
+        print_party_target = st.selectbox(
+            "Select Specific Party for Invoice-wise Detail / Statement Print:",
+            ["All Filtered Parties"] + unique_parties,
+            key="edit_party_select",
+        )
+
+      if print_party_target != "All Filtered Parties":
+        subset_df = df_clean[df_clean[party_col] == print_party_target]
+      else:
+        subset_df = df_clean
+
+      # Interactive Editable Dataframe for Live Updates
+      edited_subset = st.data_editor(
+          subset_df, use_container_width=True, height=450, key="data_editor_view"
+      )
+
+      # Update session state with edited values
+      if print_party_target != "All Filtered Parties":
+        st.session_state.df_edited.update(edited_subset)
+      else:
+        st.session_state.df_edited = edited_subset
+
+      # Automatically recalculate balance after editing if paid and invoice columns exist
+      if paid_col and invoice_col and balance_col:
+        st.session_state.df_edited[balance_col] = pd.to_numeric(
+            st.session_state.df_edited[invoice_col], errors="coerce"
+        ).fillna(0) - pd.to_numeric(
+            st.session_state.df_edited[paid_col], errors="coerce"
+        ).fillna(
+            0
+        )
+
+      col_dl_d, col_pr_d = st.columns(2)
+
+      file_suffix = (
+          print_party_target.replace(" ", "_")
+          if print_party_target != "All Filtered Parties"
+          else "All"
+      )
+
+      with col_dl_d:
+        output_details = io.BytesIO()
+        with pd.ExcelWriter(output_details, engine="openpyxl") as writer:
+          subset_df.to_excel(writer, index=False, sheet_name="Detailed_Ledger")
+        output_details.seek(0)
+
+        st.download_button(
+            label="📥 Download Detailed Ledger Excel (.xlsx)",
+            data=output_details,
+            file_name=f"ANM_Fashion_Detailed_Ledger_{file_suffix}.xlsx",
+            mime=(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ),
+            use_container_width=True,
+        )
+
+      with col_pr_d:
+        if st.button(
+            "🖨️ Print / Save Invoice-wise Detail as PDF",
+            use_container_width=True,
+            key="print_detail_btn",
+        ):
+          components.html(
+              "<script>window.parent.print();</script>", height=0, width=0
+          )
+
+  except Exception as e:
+    st.error(f"Error Processing File: {e}")
+else:
+  st.info(
+      "👈 ANM FASHION Dashboard run karne ke liye sidebar se apni Excel sheet"
+      " upload karein."
+  )

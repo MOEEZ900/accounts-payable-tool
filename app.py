@@ -78,40 +78,45 @@ st.markdown(
         margin-top: 5px;
     }
 
-    /* Print Optimization Layout */
+    /* PERFECT PRINT & PDF CSS FIX - Hiding Tabs, Buttons & Sidebar */
     @media print {
-        [data-testid="stSidebar"] { display: none !important; }
-        .stButton { display: none !important; }
-        .company-header { 
-            background: none !important; 
-            color: #000000 !important; 
-            border-bottom: 2px solid #000 !important;
-            box-shadow: none !important;
-            padding: 10px !important;
+        @page {
+            size: A4 landscape;
+            margin: 10mm;
         }
-        .company-title { color: #000000 !important; font-size: 24px !important; }
-        .company-subtitle { color: #333333 !important; font-size: 14px !important; }
-        header { display: none !important; }
-        footer { display: none !important; }
-        
-        body, html, [data-testid="stAppViewContainer"] {
+
+        [data-testid="stSidebar"], .stButton, header, footer, .company-header, .kpi-card, [data-testid="stTabs"], .stTabs, div[data-baseweb="tab-list"] {
+            display: none !important;
+        }
+
+        body, html, [data-testid="stAppViewContainer"], .main, .stApp {
             background-color: #ffffff !important;
             color: #000000 !important;
         }
-        
-        h1, h2, h3, h4, h5, h6, span, p, label {
+
+        h1, h2, h3, h4, h5, h6, span, p, label, div {
             color: #000000 !important;
         }
 
-        .kpi-card {
-            background: #f8fafc !important;
-            border: 1px solid #cbd5e1 !important;
-            box-shadow: none !important;
+        [data-testid="stDataFrame"] {
+            background-color: #ffffff !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
         }
-        .kpi-title { color: #475569 !important; }
-        .kpi-value { color: #0f172a !important; }
-        
-        .stTabs { color: #000000 !important; }
+
+        div[data-testid="stDataFrame"] * {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            border-color: #cccccc !important;
+        }
+
+        table, th, td {
+            border: 1px solid #000000 !important;
+            color: #000000 !important;
+            background-color: #ffffff !important;
+            font-size: 11px !important;
+        }
     }
     </style>
 """,
@@ -281,8 +286,12 @@ if uploaded_file is not None:
         "Yarn Quantity Column (Optional)", qty_options, index=qty_index
     )
 
-    # Data Cleaning
-    df_clean = df.copy()
+    # Initialize Session State for Data Persistence during edits
+    if "df_edited" not in st.session_state:
+      st.session_state.df_edited = df.copy()
+
+    # Data Cleaning Base
+    df_clean = st.session_state.df_edited.copy()
     df_clean[party_col] = df_clean[party_col].fillna("").astype(str).str.strip()
     df_clean = df_clean[
         ~df_clean[party_col].isin(
@@ -337,6 +346,13 @@ if uploaded_file is not None:
     else:
       pivot_value_col = balance_col
       view_label = "Balance Outstanding Amount"
+
+    # Option to Hide Zero/Blank Month Columns
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("👁️ Display Options")
+    hide_zero_cols = st.sidebar.checkbox(
+        "Hide Blank/Zero Month Columns", value=True
+    )
 
     # Party Search Filter
     st.sidebar.markdown("---")
@@ -405,7 +421,7 @@ if uploaded_file is not None:
 
     # Tabs for Summary and Details
     tab_pivot, tab_details = st.tabs(
-        ["📊 Month-wise Summary Pivot", "🧾 Detailed Invoice Ledger"]
+        ["📊 Month-wise Summary Pivot", "🧾 Detailed Invoice Ledger & Editing"]
     )
 
     with tab_pivot:
@@ -423,6 +439,12 @@ if uploaded_file is not None:
       sorted_months = sort_months_chronologically(pivot.columns)
       pivot = pivot[sorted_months]
 
+      if hide_zero_cols:
+        cols_to_keep = [
+            c for c in pivot.columns if c == "TOTAL" or pivot[c].sum() > 0
+        ]
+        pivot = pivot[cols_to_keep]
+
       pivot["TOTAL"] = pivot.sum(axis=1)
       total_row = pivot.sum(axis=0)
       total_row.name = "GRAND TOTAL"
@@ -436,9 +458,12 @@ if uploaded_file is not None:
       else:
         formatted_matrix = pivot_with_total.applymap(format_func)
 
-      st.dataframe(formatted_matrix, use_container_width=True, height=520)
+      st.markdown("### ANM FASHION - " + view_label)
+      st.write(
+          formatted_matrix.to_html(classes="styled-table"),
+          unsafe_allow_html=True,
+      )
 
-      # Excel Download & Print Buttons
       col_dl, col_pr = st.columns(2)
 
       with col_dl:
@@ -468,43 +493,51 @@ if uploaded_file is not None:
           )
 
     with tab_details:
-      st.subheader("🧾 Detailed Invoice Ledger & Party-wise Statements")
+      st.subheader(
+          "🧾 Detailed Invoice Ledger & Direct Editing (Cheque Paid Update)"
+      )
+      st.info(
+          "💡 Aap niche table mein kisi bhi row mein 'Paid' ya 'Invoice' amount"
+          " ko direct edit kar sakte hain. Changes automatically summary aur"
+          " KPIs mein reflect ho jayengi!"
+      )
 
-      # Specific Party Filter for Invoice-wise detailed printing
       col_filter_p, col_empty = st.columns([2, 2])
       with col_filter_p:
         print_party_target = st.selectbox(
             "Select Specific Party for Invoice-wise Detail / Statement Print:",
             ["All Filtered Parties"] + unique_parties,
+            key="edit_party_select",
         )
 
       if print_party_target != "All Filtered Parties":
-        df_display_details = df_clean[
-            df_clean[party_col] == print_party_target
-        ]
-        st.info(
-            f"Showing invoice-wise breakdown for: **{print_party_target}**"
-        )
+        subset_df = df_clean[df_clean[party_col] == print_party_target]
       else:
-        df_display_details = df_clean
+        subset_df = df_clean
 
-      st.dataframe(df_display_details, use_container_width=True, height=450)
+      # Interactive Editable Dataframe for Live Updates
+      edited_subset = st.data_editor(
+          subset_df, use_container_width=True, height=450, key="data_editor_view"
+      )
 
-      # Excel Download & Print Buttons for Details
+      # Update session state with edited values
+      if print_party_target != "All Filtered Parties":
+        st.session_state.df_edited.update(edited_subset)
+      else:
+        st.session_state.df_edited = edited_subset
+
       col_dl_d, col_pr_d = st.columns(2)
 
       with col_dl_d:
         output_details = io.BytesIO()
         with pd.ExcelWriter(output_details, engine="openpyxl") as writer:
-          df_display_details.to_excel(writer, index=False, sheet_name="Detailed_Ledger")
+          subset_df.to_excel(writer, index=False, sheet_name="Detailed_Ledger")
         output_details.seek(0)
 
         st.download_button(
             label="📥 Download Detailed Ledger Excel (.xlsx)",
             data=output_details,
-            file_name=(
-                f"ANM_Fashion_Detailed_Ledger_{print_party_target.replace(' ', '_')}.xlsx"
-            ),
+            file_name=f"ANM_Fashion_Detailed_Ledger_{print_party_target.replace(' ', '_')}.xlsx",
             mime=(
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             ),

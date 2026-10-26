@@ -365,6 +365,48 @@ if uploaded_file is not None:
         "Hide Blank/Zero Month Columns", value=True
     )
 
+    # NEW OPTION: Add or Less Columns in Detailed Ledger
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🛠️ Ledger Columns Control")
+    all_available_cols = list(df_clean.columns)
+    if "STD_MONTH" in all_available_cols:
+      all_available_cols.remove("STD_MONTH")
+
+    default_selected_cols = [
+        c
+        for c in [
+            party_col,
+            month_col,
+            invoice_col,
+            paid_col,
+            balance_col,
+            qty_col,
+        ]
+        if c and c in all_available_cols
+    ]
+    # Agar kuch default select na ho toh saare columns dikhayein
+    if not default_selected_cols:
+      default_selected_cols = all_available_cols
+
+    selected_ledger_cols = st.sidebar.multiselect(
+        "Select Columns to Display in Ledger",
+        options=all_available_cols,
+        default=default_selected_cols,
+    )
+
+    # Party Search Filter
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🔍 Search & Filter Parties")
+    unique_parties = sorted(
+        [str(p) for p in df_clean[party_col].unique() if str(p).strip()]
+    )
+    selected_parties = st.sidebar.multiselect(
+        "Select Parties to Display", unique_parties, default=unique_parties
+    )
+
+    if selected_parties:
+      df_clean = df_clean[df_clean[party_col].isin(selected_parties)]
+
     tot_inv = df_clean[invoice_col].sum()
     tot_paid_amt = df_clean[paid_col].sum() if paid_col else 0
     tot_balance = df_clean[balance_col].sum()
@@ -399,7 +441,7 @@ if uploaded_file is not None:
       st.markdown(
           '<div class="kpi-card"><div class="kpi-title">ACTIVE PARTIES</div><div'
           ' class="kpi-value">{} Parties</div></div>'.format(
-              len(df_clean[party_col].unique())
+              len(selected_parties)
           ),
           unsafe_allow_html=True,
       )
@@ -434,7 +476,7 @@ if uploaded_file is not None:
 
       pivot["TOTAL"] = pivot.sum(axis=1)
       total_row = pivot.sum(axis=0)
-      total_row.name = "GRAND TOTAL"
+      total_row.name = 'GRAND TOTAL'
       pivot_with_total = pd.concat([pivot, pd.DataFrame(total_row).T])
 
       format_func = (
@@ -448,3 +490,135 @@ if uploaded_file is not None:
       st.markdown("### ANM FASHION - " + view_label)
       st.write(
           formatted_matrix.to_html(classes="styled-table"),
+          unsafe_allow_html=True,
+      )
+
+      col_dl, col_pr = st.columns(2)
+
+      with col_dl:
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+          pivot_with_total.to_excel(writer, sheet_name="Summary_Report")
+        output.seek(0)
+
+        st.download_button(
+            label="📥 Download Professional Excel Report (.xlsx)",
+            data=output,
+            file_name="ANM_Fashion_Summary_Report.xlsx",
+            mime=(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ),
+            use_container_width=True,
+        )
+
+      with col_pr:
+        if st.button(
+            "🖨️ Print / Save Summary Report as PDF",
+            use_container_width=True,
+            key="print_summary_btn",
+        ):
+          components.html(
+              "<script>window.parent.print();</script>", height=0, width=0
+          )
+
+    with tab_details:
+      st.subheader(
+          "🧾 Detailed Invoice Ledger & Direct Editing (Cheque Paid Update)"
+      )
+      st.info(
+          "💡 Aap sidebar mein 'Ledger Columns Control' se koi bhi column add ya"
+          " remove kar sakte hain, aur table mein direct amount edit kar"
+          " sakte hain!"
+      )
+
+      col_filter_p, col_empty = st.columns([2, 2])
+      with col_filter_p:
+        print_party_target = st.selectbox(
+            "Select Specific Party for Invoice-wise Detail / Statement Print:",
+            ["All Filtered Parties"] + unique_parties,
+            key="edit_party_select",
+        )
+
+      if print_party_target != "All Filtered Parties":
+        subset_df = df_clean[df_clean[party_col] == print_party_target]
+      else:
+        subset_df = df_clean
+
+      # Apply selected columns filter for display & editing
+      if selected_ledger_cols:
+        display_subset = subset_df[
+            [c for c in selected_ledger_cols if c in subset_df.columns]
+        ]
+      else:
+        display_subset = subset_df
+
+      # Interactive Editable Dataframe for Live Updates
+      edited_subset = st.data_editor(
+          display_subset,
+          use_container_width=True,
+          height=450,
+          key="data_editor_view",
+      )
+
+      # Update session state with edited values back into the main dataframe
+      if not edited_subset.empty:
+        common_indices = edited_subset.index.intersection(
+            st.session_state.df_edited.index
+        )
+        for col in edited_subset.columns:
+          if col in st.session_state.df_edited.columns:
+            st.session_state.df_edited.loc[common_indices, col] = (
+                edited_subset.loc[common_indices, col]
+            )
+
+      # Automatically recalculate balance after editing if paid and invoice columns exist
+      if paid_col and invoice_col and balance_col:
+        st.session_state.df_edited[balance_col] = pd.to_numeric(
+            st.session_state.df_edited[invoice_col], errors="coerce"
+        ).fillna(0) - pd.to_numeric(
+            st.session_state.df_edited[paid_col], errors="coerce"
+        ).fillna(
+            0
+        )
+
+      col_dl_d, col_pr_d = st.columns(2)
+
+      file_suffix = (
+          print_party_target.replace(" ", "_")
+          if print_party_target != "All Filtered Parties"
+          else "All"
+      )
+
+      with col_dl_d:
+        output_details = io.BytesIO()
+        with pd.ExcelWriter(output_details, engine="openpyxl") as writer:
+          subset_df.to_excel(writer, index=False, sheet_name="Detailed_Ledger")
+        output_details.seek(0)
+
+        st.download_button(
+            label="📥 Download Detailed Ledger Excel (.xlsx)",
+            data=output_details,
+            file_name=f"ANM_Fashion_Detailed_Ledger_{file_suffix}.xlsx",
+            mime=(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ),
+            use_container_width=True,
+        )
+
+      with col_pr_d:
+        if st.button(
+            "🖨️ Print / Save Invoice-wise Detail as PDF",
+            use_container_width=True,
+            key="print_detail_btn",
+        ):
+          components.html(
+              "<script>window.parent.print();</script>", height=0, width=0
+          )
+
+  except Exception as e:
+    st.error(f"Error Processing File: {e}")
+else:
+  st.info(
+      "👈 ANM FASHION Dashboard run karne ke liye sidebar se apni Excel sheet"
+      " upload karein."
+  )

@@ -203,10 +203,9 @@ if uploaded_file is not None:
     df = pd.read_excel(uploaded_file, header=header_row)
     df.columns = [str(c).strip() for c in df.columns]
 
-    # Remove Unnamed Columns Safely
-    df = df.drop(
-        columns=[col for col in df.columns if "Unnamed" in str(col)]
-    )
+    # Remove Unnamed Columns Safely using List Comprehension
+    valid_cols = [c for c in df.columns if "Unnamed" not in str(c)]
+    df = df[valid_cols]
 
     st.sidebar.success("✅ File Loaded Successfully!")
 
@@ -229,113 +228,4 @@ if uploaded_file is not None:
         df.columns[-3] if len(df.columns) >= 3 else df.columns[-1],
     )
     default_paid = next(
-        (v for k, v in cols_lower.items() if k == "paid"), None
-    )
-    default_balance = next(
-        (v for k, v in cols_lower.items() if k == "balance"), None
-    )
-    default_qty = next(
-        (
-            v
-            for k, v in cols_lower.items()
-            if k == "qty" or "quantity" in k or "bags" in k
-        ),
-        None,
-    )
-
-    st.sidebar.subheader("📌 Column Mapping")
-    party_col = st.sidebar.selectbox(
-        "Party Name Column",
-        df.columns,
-        index=list(df.columns).index(default_party),
-    )
-    month_col = st.sidebar.selectbox(
-        "Month Column",
-        df.columns,
-        index=list(df.columns).index(default_month),
-    )
-
-    invoice_col = st.sidebar.selectbox(
-        "Invoice Amount Column",
-        df.columns,
-        index=list(df.columns).index(default_invoice),
-    )
-
-    paid_options = [None] + list(df.columns)
-    paid_index = (
-        (list(df.columns).index(default_paid) + 1)
-        if default_paid and default_paid in df.columns
-        else 0
-    )
-    paid_col = st.sidebar.selectbox(
-        "Paid Amount Column", paid_options, index=paid_index
-    )
-
-    balance_options = [None] + list(df.columns)
-    balance_index = (
-        (list(df.columns).index(default_balance) + 1)
-        if default_balance and default_balance in df.columns
-        else 0
-    )
-    balance_col = st.sidebar.selectbox(
-        "Balance Amount Column", balance_options, index=balance_index
-    )
-
-    qty_options = [None] + list(df.columns)
-    qty_index = (
-        (list(df.columns).index(default_qty) + 1)
-        if default_qty and default_qty in df.columns
-        else 0
-    )
-    qty_col = st.sidebar.selectbox(
-        "Yarn Quantity Column (Optional)", qty_options, index=qty_index
-    )
-
-    # Initialize Session State for Data Persistence during edits
-    if "df_edited" not in st.session_state:
-      st.session_state.df_edited = df.copy()
-
-    # Data Cleaning Base
-    df_clean = st.session_state.df_edited.copy()
-    df_clean[party_col] = df_clean[party_col].fillna("").astype(str).str.strip()
-    df_clean = df_clean[
-        ~df_clean[party_col].isin(
-            ["None", "nan", "", "TOTAL", "GRAND TOTAL", "0"]
-        )
-    ]
-
-    df_clean[invoice_col] = pd.to_numeric(
-        df_clean[invoice_col], errors="coerce"
-    ).fillna(0)
-
-    if paid_col:
-      df_clean[paid_col] = pd.to_numeric(
-          df_clean[paid_col], errors="coerce"
-      ).fillna(0)
-
-    if balance_col:
-      df_clean[balance_col] = pd.to_numeric(
-          df_clean[balance_col], errors="coerce"
-      ).fillna(0)
-    else:
-      df_clean["CALC_BALANCE"] = df_clean[invoice_col] - (
-          df_clean[paid_col] if paid_col else 0
-      )
-      balance_col = "CALC_BALANCE"
-
-    if qty_col:
-      df_clean[qty_col] = pd.to_numeric(
-          df_clean[qty_col], errors="coerce"
-      ).fillna(0)
-
-    df_clean["STD_MONTH"] = df_clean[month_col].apply(parse_month_year)
-
-    # Summary View Filter Selection
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("🎯 Summary View Filter")
-    summary_view_option = st.sidebar.radio(
-        "Select View & Summary Metric:",
-        [
-            "3. Balance Outstanding (Default)",
-            "1. Total Outstanding (Invoice)",
-            "2. Paid Cheque (Paid)",
+        (v for k, v in cols_lower.items() if

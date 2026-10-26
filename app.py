@@ -119,7 +119,7 @@ st.markdown(
         }
     }
     </style>
-""",
+    """,
     unsafe_allow_html=True,
 )
 
@@ -130,7 +130,7 @@ st.markdown(
         <div class="company-title">ANM FASHION</div>
         <div class="company-subtitle">🧵 YARN PAYABLE REPORT & ACCOUNTS DASHBOARD</div>
     </div>
-""",
+    """,
     unsafe_allow_html=True,
 )
 
@@ -291,105 +291,4 @@ if uploaded_file is not None:
       st.session_state.df_edited = df.copy()
 
     # Data Cleaning Base
-    df_clean = st.session_state.df_edited.copy()
-    df_clean[party_col] = df_clean[party_col].fillna("").astype(str).str.strip()
-    df_clean = df_clean[
-        ~df_clean[party_col].isin(
-            ["None", "nan", "", "TOTAL", "GRAND TOTAL", "0"]
-        )
-    ]
-
-    df_clean[invoice_col] = pd.to_numeric(
-        df_clean[invoice_col], errors="coerce"
-    ).fillna(0)
-
-    if paid_col:
-      df_clean[paid_col] = pd.to_numeric(
-          df_clean[paid_col], errors="coerce"
-      ).fillna(0)
-
-    if balance_col:
-      df_clean[balance_col] = pd.to_numeric(
-          df_clean[balance_col], errors="coerce"
-      ).fillna(0)
-    else:
-      df_clean["CALC_BALANCE"] = df_clean[invoice_col] - (
-          df_clean[paid_col] if paid_col else 0
-      )
-      balance_col = "CALC_BALANCE"
-
-    if qty_col:
-      df_clean[qty_col] = pd.to_numeric(
-          df_clean[qty_col], errors="coerce"
-      ).fillna(0)
-
-    df_clean["STD_MONTH"] = df_clean[month_col].apply(parse_month_year)
-
-    # Summary View Filter Selection
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("🎯 Summary View Filter")
-    summary_view_option = st.sidebar.radio(
-        "Select View & Summary Metric:",
-        [
-            "3. Balance Outstanding (Default)",
-            "1. Total Outstanding (Invoice)",
-            "2. Paid Cheque (Paid)",
-        ],
-    )
-
-    if "1. Total Outstanding" in summary_view_option:
-      pivot_value_col = invoice_col
-      view_label = "Total Invoice Amount"
-    elif "2. Paid Cheque" in summary_view_option and paid_col:
-      pivot_value_col = paid_col
-      view_label = "Paid Cheque Amount"
-    else:
-      pivot_value_col = balance_col
-      view_label = "Balance Outstanding Amount"
-
-    # Option to Hide Zero/Blank Month Columns
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("👁️ Display Options")
-    hide_zero_cols = st.sidebar.checkbox(
-        "Hide Blank/Zero Month Columns", value=True
-    )
-
-    # Party Search Filter
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("🔍 Search & Filter Parties")
-    unique_parties = sorted(
-        [str(p) for p in df_clean[party_col].unique() if str(p).strip()]
-    )
-    selected_parties = st.sidebar.multiselect(
-        "Select Parties to Display", unique_parties, default=unique_parties
-    )
-
-    if selected_parties:
-      df_clean = df_clean[df_clean[party_col].isin(selected_parties)]
-
-    tot_inv = df_clean[invoice_col].sum()
-    tot_paid_amt = df_clean[paid_col].sum() if paid_col else 0
-    tot_balance = df_clean[balance_col].sum()
-
-    # Top Executive KPI Cards
-    c1, c2, c3, c4 = st.columns(4)
-    with c1:
-      st.markdown(
-          f"""
-                <div class="kpi-card kpi-card-gold">
-                    <div class="kpi-title">TOTAL INVOICE AMOUNT</div>
-                    <div class="kpi-value">PKR {tot_inv:,.0f}</div>
-                </div>
-            """,
-          unsafe_allow_html=True,
-      )
-
-    with c2:
-      st.markdown(
-          f"""
-                <div class="kpi-card kpi-card-green">
-                    <div class="kpi-title">TOTAL PAID CHEQUES</div>
-                    <div class="kpi-value">PKR {tot_paid_amt:,.0f}</div>
-                </div>
-            """,
-          unsafe_allow_html=True,
+    df_clean = st.session_state.df_edited.copy

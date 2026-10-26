@@ -203,10 +203,10 @@ if uploaded_file is not None:
     df = pd.read_excel(uploaded_file, header=header_row)
     df.columns = [str(c).strip() for c in df.columns]
 
-    # Remove Unnamed Columns Automatically
-    df = df.loc[
-        [:, ~df.columns.str.contains("^Unnamed", case=False, na=False)]
-    ]
+    # Remove Unnamed Columns Safely
+    df = df.drop(
+        columns=[col for col in df.columns if "Unnamed" in str(col)]
+    )
 
     st.sidebar.success("✅ File Loaded Successfully!")
 
@@ -335,3 +335,6 @@ if uploaded_file is not None:
     st.sidebar.subheader("🎯 Summary View Filter")
     summary_view_option = st.sidebar.radio(
         "Select View & Summary Metric:",
+        [
+            "3. Balance Outstanding (Default)",
+            "1. Total Outstanding (Invoice)",
